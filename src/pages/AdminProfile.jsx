@@ -35,7 +35,7 @@ const AdminProfile = () => {
         </div>
 
         <h1 className="profile-name">Alex Mercer</h1>
-        <p className="profile-role">Senior Developer</p>
+        <p className="profile-role">Admin</p>
 
         <ul className="profile-info-list">
           {infoRows.map((row) => (

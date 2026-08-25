@@ -13,6 +13,7 @@ import AdminProfileEdit from './pages/AdminProfileEdit'
 import AccessControl from './pages/AccessControl'
 import Biometrics from './pages/Biometrics'
 import UserManagement from './pages/UserManagement'
+import PrintAttendanceQR from './pages/PrintAttendanceQR'
 
 function App() {
   return (
@@ -32,6 +33,7 @@ function App() {
         <Route path="access-control" element={<AccessControl />} />
         <Route path="biometrics" element={<Biometrics />} />
         <Route path="user-management" element={<UserManagement />} />
+        <Route path="print-attendance-qr" element={<PrintAttendanceQR />} />
       </Route>
     </Routes>
   )

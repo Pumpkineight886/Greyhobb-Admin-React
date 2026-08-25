@@ -2880,6 +2880,143 @@ select {
   margin-bottom: 0;
 }
 
+/* ==========================================================
+   Print Attendance QR — admin-side equipment
+   Migrated from legacy standalone HTML (reception sign).
+   Must sit beside other back-office tools; not a student feature.
+   ========================================================== */
+.print-qr-page {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 16px 0 32px;
+}
+
+.print-qr-card {
+  background: #ffffff;
+  border: 1px solid #eaeaea;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  padding: 40px 36px;
+  max-width: 480px;
+  width: 100%;
+  text-align: center;
+  font-family: 'Poppins', 'Inter', sans-serif;
+}
+
+.print-qr-brand {
+  color: #6b1f3a;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin: 0 0 6px;
+}
+
+.print-qr-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 4px;
+  color: #1a1c1c;
+}
+
+.print-qr-subtext {
+  color: #5e5e5e;
+  font-size: 13px;
+  margin: 0 0 24px;
+  line-height: 1.5;
+}
+
+.print-qr-code {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.print-qr-code > img,
+.print-qr-code > canvas {
+  border: 1px solid #eaeaea;
+  border-radius: 8px;
+  max-width: 100%;
+  height: auto;
+}
+
+.print-qr-location {
+  font-family: monospace;
+  font-size: 15px;
+  font-weight: 600;
+  background: #f3f3f3;
+  border: 1px dashed #d3d3d3;
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: inline-block;
+  margin: 0 0 22px;
+  color: #1a1c1c;
+}
+
+.print-qr-instructions {
+  text-align: left;
+  list-style-position: inside;
+  color: #5e5e5e;
+  font-size: 13px;
+  line-height: 1.9;
+  margin: 0 0 26px;
+  padding: 0;
+}
+
+.print-qr-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.print-qr-warning {
+  margin: 20px 0 0;
+  color: #d32f2f;
+  background: #fdecec;
+  font-size: 12px;
+  border-radius: 8px;
+  padding: 10px 14px;
+  line-height: 1.6;
+}
+
+/* ---------- Print: only the sign itself ---------- */
+@media print {
+  .admin-navbar,
+  .admin-menu-panel,
+  .dropdown-backdrop {
+    display: none !important;
+  }
+
+  .admin-main {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+
+  .admin-body {
+    display: block !important;
+  }
+
+  .print-qr-page {
+    display: block;
+    padding: 0;
+  }
+
+  .print-qr-card {
+    box-shadow: none;
+    border: none;
+    max-width: none;
+    padding: 32px 0 0;
+    margin: 0 auto;
+    text-align: center;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}
+
 /* ---------- Motion (respect reduced-motion) ---------- */
 @media (prefers-reduced-motion: no-preference) {
   .stat-card,

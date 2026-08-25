@@ -6,6 +6,7 @@ const MENU_ITEMS = [
   { to: '/student-directory', icon: 'student-directory-icon.png', title: 'Student Directory', desc: 'Manage and view enrolled student profiles.' },
   { to: '/system-settings', icon: 'system-settings-icon.png', title: 'System Settings', desc: 'Configure global application parameters.' },
   { to: '/user-management', icon: 'user-management-icon.png', title: 'User Management', desc: 'Control access levels and credentials.' },
+  { to: '/print-attendance-qr', icon: 'audit-logs-icon.png', title: 'Print Attendance QR', desc: 'Print reception sign — students & staff scan to check in.' },
 ]
 
 export default function AdminSidebar({ onClose }) {
