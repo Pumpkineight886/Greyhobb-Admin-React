@@ -1,3 +1,6 @@
+import { useEffect, useState } from 'react'
+import api from '../api/axios'
+
 function CalendarIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -35,40 +38,63 @@ function XIcon() {
   )
 }
 
-const stats = [
-  { id: 'present', label: 'Present', value: 35, tone: 'present', Icon: CheckIcon },
-  { id: 'late', label: 'Late', value: 4, tone: 'late', Icon: ClockIcon },
-  { id: 'absent', label: 'Absent', value: 3, tone: 'absent', Icon: XIcon },
-]
+function initials(name) {
+  return (name || '?').split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2)
+}
 
-const recentCheckins = [
-  {
-    id: 1,
-    name: 'Sarah Jenkins',
-    role: 'Front Desk',
-    time: 'Checked in · 7:42 AM',
-    status: 'present',
-    initials: 'SJ',
-  },
-  {
-    id: 2,
-    name: 'Michael Chang',
-    role: 'IT Support',
-    time: 'Checked in · 8:16 AM',
-    status: 'late',
-    initials: 'MC',
-  },
-  {
-    id: 3,
-    name: 'David Okafor',
-    role: 'Security',
-    time: 'Checked in · 8:24 AM',
-    status: 'present',
-    initials: 'DO',
-  },
-]
+function isLate(markedAt) {
+  const d = new Date(markedAt)
+  return d.getHours() > 9 || (d.getHours() === 9 && d.getMinutes() > 0)
+}
 
 export default function AdminHome() {
+  const [stats, setStats] = useState({ present: 0, late: 0, absent: 0 })
+  const [recent, setRecent] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      setError('')
+      try {
+        const [statsRes, recentRes] = await Promise.all([
+          api.get('/attendance/stats'),
+          api.get('/attendance/recent?limit=5'),
+        ])
+        if (cancelled) return
+        setStats(statsRes.data)
+        // recent returns AttendanceWithUser
+        const mapped = recentRes.data.map((r) => {
+          const late = isLate(r.marked_at)
+          const time = new Date(r.marked_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+          return {
+            id: r.id,
+            name: r.user?.name || 'Unknown',
+            role: r.user?.department || r.user?.school || '—',
+            time: `Checked in · ${time}`,
+            status: late ? 'late' : 'present',
+            initials: initials(r.user?.name),
+          }
+        })
+        setRecent(mapped)
+      } catch (err) {
+        if (!cancelled) setError(err.response?.data?.detail || err.message || 'Failed to load overview')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [])
+
+  const statItems = [
+    { id: 'present', label: 'Present', value: stats.present, tone: 'present', Icon: CheckIcon },
+    { id: 'late', label: 'Late', value: stats.late, tone: 'late', Icon: ClockIcon },
+    { id: 'absent', label: 'Absent', value: stats.absent, tone: 'absent', Icon: XIcon },
+  ]
+
   return (
     <>
       <section className="overview">
@@ -86,39 +112,52 @@ export default function AdminHome() {
         </div>
       </section>
 
-      <section className="stat-grid">
-        {stats.map(({ id, label, value, tone, Icon }) => (
-          <article key={id} className="stat-card">
-            <div className="stat-card-top">
-              <span className="stat-label">{label}</span>
-              <span className={`stat-icon ${tone}`}>
-                <Icon />
-              </span>
-            </div>
-            <div className="stat-value-row">
-              <span className="stat-value">{value}</span>
-            </div>
-          </article>
-        ))}
-      </section>
+      {error && <p className="error-msg" style={{ marginBottom: 16 }}>{error}</p>}
+      {loading ? (
+        <p style={{ color: '#6b7280', padding: 12 }}>Loading overview…</p>
+      ) : (
+        <section className="stat-grid">
+          {statItems.map(({ id, label, value, tone, Icon }) => (
+            <article key={id} className="stat-card">
+              <div className="stat-card-top">
+                <span className="stat-label">{label}</span>
+                <span className={`stat-icon ${tone}`}>
+                  <Icon />
+                </span>
+              </div>
+              <div className="stat-value-row">
+                <span className="stat-value">{value}</span>
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
 
       <section className="checkins">
         <h2>Recent Check-ins</h2>
-        <div className="checkin-list">
-          {recentCheckins.map(({ id, name, role, time, status, initials }) => (
-            <div key={id} className="checkin-row">
-              <div className="checkin-avatar initials">{initials}</div>
-              <div className="checkin-info">
-                <div className="checkin-name">{name}</div>
-                <div className="checkin-meta">{role}</div>
+        {loading ? (
+          <p style={{ color: '#6b7280', padding: 12 }}>Loading…</p>
+        ) : recent.length === 0 ? (
+          <div className="checkin-list" style={{ padding: 24, textAlign: 'center', color: '#9ca3af' }}>
+            No check-ins yet. Generate a QR and mark attendance to see data.
+          </div>
+        ) : (
+          <div className="checkin-list">
+            {recent.map(({ id, name, role, time, status, initials: ini }) => (
+              <div key={id} className="checkin-row">
+                <div className="checkin-avatar initials">{ini}</div>
+                <div className="checkin-info">
+                  <div className="checkin-name">{name}</div>
+                  <div className="checkin-meta">{role}</div>
+                </div>
+                <div className="checkin-status">
+                  <span className={`status-badge ${status}`}>{status}</span>
+                  <span className="checkin-time">{time}</span>
+                </div>
               </div>
-              <div className="checkin-status">
-                <span className={`status-badge ${status}`}>{status}</span>
-                <span className="checkin-time">{time}</span>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </section>
     </>
   )

@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import AdminLayout from './components/AdminLayout'
+import ProtectedRoute from './components/ProtectedRoute'
 import AdminHome from './pages/AdminHome'
 import EmployeeLogs from './pages/EmployeeLogs'
 import AnalyticsReports from './pages/AnalyticsReports'
@@ -14,11 +15,22 @@ import AccessControl from './pages/AccessControl'
 import Biometrics from './pages/Biometrics'
 import UserManagement from './pages/UserManagement'
 import PrintAttendanceQR from './pages/PrintAttendanceQR'
+import Login from './pages/Login'
+import Signup from './pages/Signup'
 
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<AdminLayout />}>
+      <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <AdminLayout />
+          </ProtectedRoute>
+        }
+      >
         <Route index element={<Navigate to="/home" replace />} />
         <Route path="home" element={<AdminHome />} />
         <Route path="employee-logs" element={<EmployeeLogs />} />
@@ -35,6 +47,7 @@ function App() {
         <Route path="user-management" element={<UserManagement />} />
         <Route path="print-attendance-qr" element={<PrintAttendanceQR />} />
       </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }

@@ -1,4 +1,5 @@
 import { NavLink, Link } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 
 const MENU_ITEMS = [
   { to: '/employee-logs', icon: 'employee-logs-icon.png', title: 'Employee Logs', desc: 'Review daily attendance and activity records.' },
@@ -10,15 +11,19 @@ const MENU_ITEMS = [
 ]
 
 export default function AdminSidebar({ onClose }) {
+  const { user } = useAuth()
+  const displayName = user?.name || 'Admin User'
+  const displayRole = user?.department ? `${user.department} • ${user?.school || 'Admin'}` : 'System Administrator'
+  const initials = displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2)
   return (
     <aside className="admin-menu-panel" id="admin-menu-panel" role="menu">
       <Link to="/profile" className="admin-profile-row" onClick={onClose}>
-        <div className="admin-avatar">
-          <img src="/assets/admin-user-icon.png" alt="" />
+        <div className="admin-avatar" style={{ color:'#fff', fontWeight:700, fontSize:14 }}>
+          {initials}
         </div>
         <div className="admin-profile-text">
-          <h2 className="admin-name">Admin User</h2>
-          <p className="admin-role">System Administrator</p>
+          <h2 className="admin-name">{displayName}</h2>
+          <p className="admin-role">{displayRole}</p>
         </div>
       </Link>
 

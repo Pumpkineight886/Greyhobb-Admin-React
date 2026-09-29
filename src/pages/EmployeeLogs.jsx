@@ -1,11 +1,5 @@
-import { useState } from 'react'
-
-const MOCK_AUDIT_LOGS = [
-  { id: 'log-1', actor: 'J. Smith', action: 'Changed Biometric Policy', description: 'Updated strictness level for HQ terminal.', timestamp: '2023-10-24T14:32:01', ipAddress: '192.168.1.105', flagged: false },
-  { id: 'log-2', actor: 'A. Davis', action: 'Deactivated User', description: 'Account ID: EMP-4092 flagged for review.', timestamp: '2023-10-24T11:15:44', ipAddress: '10.0.4.22', flagged: true },
-  { id: 'log-3', actor: 'System', action: 'Automated Backup', description: 'Daily attendance records archived.', timestamp: '2023-10-24T03:00:00', location: 'Local Server', flagged: false },
-  { id: 'log-4', actor: 'M. Chen', action: 'Admin Login', description: 'Successful authentication.', timestamp: '2023-10-23T21:47:12', ipAddress: '172.16.0.9', flagged: false },
-]
+import { useEffect, useState } from 'react'
+import api from '../api/axios'
 
 function formatTimestamp(iso) {
   const date = new Date(iso)
@@ -22,22 +16,58 @@ function formatTimestamp(iso) {
 
 export default function EmployeeLogs() {
   const [search, setSearch] = useState('')
+  const [logs, setLogs] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  const filteredLogs = MOCK_AUDIT_LOGS.filter((log) => {
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      setError('')
+      try {
+        // Use attendance/all as audit trail fallback — each attendance is a log
+        const res = await api.get('/attendance/all')
+        if (cancelled) return
+        const mapped = res.data.map((r) => ({
+          id: r.id,
+          actor: r.user?.name || r.user_id.slice(0,8),
+          action: 'Marked Attendance',
+          description: `${r.user?.email || ''} — ${r.user?.department || ''} / ${r.user?.school || ''} on ${r.date}`,
+          timestamp: r.marked_at,
+          ipAddress: `user:${r.user_id.slice(0,8)}`,
+          flagged: false,
+        }))
+        // most recent first (already sorted desc)
+        setLogs(mapped)
+      } catch (err) {
+        if (!cancelled) setError(err.response?.data?.detail || err.message || 'Failed to load logs')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [])
+
+  const filteredLogs = logs.filter((log) => {
     const query = search.trim().toLowerCase()
     if (!query) return true
-    const haystack = [log.actor, log.action, log.description, log.ipAddress, log.location]
+    const haystack = [log.actor, log.action, log.description, log.ipAddress]
       .filter(Boolean)
       .join(' ')
       .toLowerCase()
     return haystack.includes(query)
   })
 
+  if (loading) return <p style={{ padding: 24, color: '#6b7280' }}>Loading audit logs…</p>
+  if (error) return <p className="error-msg" style={{ padding: 24 }}>{error}</p>
+
   return (
     <div className="audit-logs-page">
       <header className="al-header">
         <h1 className="al-title">Audit Logs</h1>
-        <p className="al-subtitle">Track and monitor administrative actions.</p>
+        <p className="al-subtitle">Live attendance audit trail from <code>GET /attendance/all</code> — {logs.length} records.</p>
         <div className="al-search-wrap">
           <img src="/assets/search-icon.png" alt="" className="al-search-icon" />
           <input
@@ -51,7 +81,9 @@ export default function EmployeeLogs() {
       </header>
 
       <div className="al-content">
-        {filteredLogs.map((log) => (
+        {filteredLogs.length === 0 ? (
+          <p className="al-empty">{logs.length === 0 ? 'No attendance records yet. Mark attendance to generate logs.' : 'No audit logs match your search.'}</p>
+        ) : filteredLogs.map((log) => (
           <div key={log.id} className={`al-card${log.flagged ? ' flagged' : ''}`}>
             <div className="al-card-icon">
               <img src="/assets/audit-logs-icon.png" alt="" />
@@ -65,20 +97,12 @@ export default function EmployeeLogs() {
               </div>
               {log.ipAddress && (
                 <div className="al-meta-row">
-                  <span>IP Address: {log.ipAddress}</span>
-                </div>
-              )}
-              {log.location && (
-                <div className="al-meta-row">
-                  <span>Location: {log.location}</span>
+                  <span>Ref: {log.ipAddress}</span>
                 </div>
               )}
             </div>
           </div>
         ))}
-        {filteredLogs.length === 0 && (
-          <p className="al-empty">No audit logs match your search.</p>
-        )}
       </div>
     </div>
   )

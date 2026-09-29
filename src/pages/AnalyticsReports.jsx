@@ -1,24 +1,73 @@
-const attendanceData = [
-  { label: 'Mon', value: 58 },
-  { label: 'Tue', value: 68 },
-  { label: 'Wed', value: 61 },
-  { label: 'Thu', value: 79 },
-  { label: 'Fri', value: 88 },
-]
-
-const lateBreakdown = [
-  { label: 'Frontend', value: 15 },
-  { label: 'Backend', value: 12 },
-]
+import { useEffect, useState, useMemo } from 'react'
+import api from '../api/axios'
 
 export default function AnalyticsReports() {
-  const maxLate = Math.max(...lateBreakdown.map((item) => item.value))
+  const [history, setHistory] = useState([])
+  const [stats, setStats] = useState({ present: 0, late: 0, absent: 0, total_users: 0 })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      setError('')
+      try {
+        const [allRes, statsRes] = await Promise.all([
+          api.get('/attendance/all'),
+          api.get('/attendance/stats'),
+        ])
+        if (cancelled) return
+        setHistory(allRes.data)
+        setStats(statsRes.data)
+      } catch (err) {
+        if (!cancelled) setError(err.response?.data?.detail || err.message || 'Failed to load analytics')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [])
+
+  const attendanceData = useMemo(() => {
+    // Group by weekday Mon-Fri for current week from history
+    const dayMap = { Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0 }
+    const dayOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
+    for (const r of history) {
+      const d = new Date(r.date + 'T00:00:00')
+      const wd = d.toLocaleDateString('en-US', { weekday: 'short' })
+      if (wd in dayMap) dayMap[wd]++
+    }
+    const max = Math.max(1, ...Object.values(dayMap))
+    return dayOrder.map(label => ({ label, value: Math.round((dayMap[label] / max) * 88) || 8 }))
+  }, [history])
+
+  const lateBreakdown = useMemo(() => {
+    // breakdown by department from history late only
+    const map = {}
+    for (const r of history) {
+      const d = new Date(r.marked_at)
+      const late = d.getHours() > 9 || (d.getHours() === 9 && d.getMinutes() > 0)
+      if (!late) continue
+      const dept = r.user?.department || 'Other'
+      map[dept] = (map[dept] || 0) + 1
+    }
+    const entries = Object.entries(map).map(([label, value]) => ({ label, value }))
+    if (entries.length === 0) return [{ label: 'No late data', value: 0 }]
+    return entries.slice(0, 5)
+  }, [history])
+
+  const maxLate = Math.max(...lateBreakdown.map((item) => item.value), 1)
+
+  if (loading) return <p style={{ padding: 24, color: '#6b7280' }}>Loading analytics…</p>
+  if (error) return <p className="error-msg" style={{ padding: 24 }}>{error}</p>
 
   return (
     <>
       <header className="reports-header">
         <h1>Analytics Reports</h1>
-        <p>Overview of attendance metrics for the current month.</p>
+        <p>Live overview from <code>GET /attendance/stats</code> and <code>GET /attendance/all</code> ({history.length} records).</p>
       </header>
 
       <div className="reports-grid">
@@ -27,10 +76,10 @@ export default function AnalyticsReports() {
             <h3 className="report-card-title">Daily Attendance Rate</h3>
             <span className="trend-badge">
               <img src="/assets/rate-arrow-icon.png" alt="" />
-              <span className="trend-value">+2.4%</span>
+              <span className="trend-value">{stats.total_users ? `${Math.round((stats.present / Math.max(1, stats.total_users)) * 100)}%` : '—'}</span>
             </span>
           </div>
-          <p className="report-card-sub">Average across all departments</p>
+          <p className="report-card-sub">Average across all departments — present {stats.present} / total {stats.total_users}</p>
 
           <div className="chart-bars">
             {attendanceData.map(({ label, value }) => (
@@ -49,8 +98,8 @@ export default function AnalyticsReports() {
             <img src="/assets/late-arrivals-icon.png" alt="Late arrivals" />
           </div>
           <h3 className="report-card-title">Late Arrivals</h3>
-          <div className="late-count">42</div>
-          <p className="late-sub">This week across all branches.</p>
+          <div className="late-count">{stats.late}</div>
+          <p className="late-sub">Late today across all branches (after 09:00).</p>
 
           <div className="late-breakdown">
             {lateBreakdown.map(({ label, value }) => (
