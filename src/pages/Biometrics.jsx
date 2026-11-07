@@ -1,4 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import api from '../api/axios'
+import { readStored, writeStored } from '../lib/storage.js'
+
+const BIOMETRICS_KEY = 'greyhobb.biometrics.enabled'
 
 function ShieldIcon() {
   return (
@@ -13,16 +17,35 @@ function ShieldCheckIcon() {
 }
 
 export default function Biometrics() {
-  const [enabled, setEnabled] = useState(true)
-  const [saved, setSaved] = useState(true)
+  const stored = readStored(BIOMETRICS_KEY, true)
+  const [enabled, setEnabled] = useState(stored)
+  const [saved, setSaved] = useState(stored)
   const [toast, setToast] = useState('')
+  const [employeeCount, setEmployeeCount] = useState(null)
   const dirty = enabled !== saved
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadCount() {
+      try {
+        const res = await api.get('/auth/users')
+        if (!cancelled) setEmployeeCount((res.data || []).length)
+      } catch {
+        if (!cancelled) setEmployeeCount(null)
+      }
+    }
+    loadCount()
+    return () => { cancelled = true }
+  }, [])
 
   const save = () => {
     setSaved(enabled)
+    writeStored(BIOMETRICS_KEY, enabled)
     setToast(enabled ? 'Biometric verification enabled and saved.' : 'Biometric verification disabled and saved.')
     setTimeout(() => setToast(''), 2500)
   }
+
+  const countText = employeeCount === null ? '—' : employeeCount.toLocaleString()
 
   return (
     <div>
@@ -77,7 +100,14 @@ export default function Biometrics() {
             )}
             {enabled ? 'STRICT MODE ACTIVE' : 'STANDARD MODE'}
           </span>
-          <p>{enabled ? 'Currently enforcing biometrics for 1,204 active employees.' : 'Biometric verification is optional for 1,204 active employees.'}</p>
+          <p>
+            {enabled
+              ? `Currently enforcing biometrics for ${countText} registered users.`
+              : `Biometric verification is optional for ${countText} registered users.`}
+          </p>
+          <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 8 }}>
+            Policy is saved on this device.
+          </p>
         </section>
       </div>
 

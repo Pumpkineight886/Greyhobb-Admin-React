@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import QRCodeStyling from 'qr-code-styling'
-import api, { API_BASE } from '../api/axios'
+import api from '../api/axios'
+import { parseServerTime } from '../lib/datetime.js'
 
 export default function PrintAttendanceQR() {
   const qrRef = useRef(null)
@@ -11,8 +12,14 @@ export default function PrintAttendanceQR() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [countdown, setCountdown] = useState(0)
+  const generatingRef = useRef(false)
+  const lastRegenRef = useRef(0)
 
-  const generate = async () => {
+  const generate = useCallback(async () => {
+    // Prevent overlapping requests (manual click + auto-refresh).
+    if (generatingRef.current) return
+    generatingRef.current = true
+    lastRegenRef.current = Date.now()
     setLoading(true)
     setError('')
     try {
@@ -21,27 +28,32 @@ export default function PrintAttendanceQR() {
     } catch (err) {
       setError(err.response?.data?.detail || err.message || 'Failed to generate QR')
     } finally {
+      generatingRef.current = false
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     generate()
-  }, [])
+  }, [generate])
 
-  // countdown timer
+  // countdown timer + auto-regeneration at expiry
   useEffect(() => {
     if (!qrData?.expires_at) return
-    const expires = new Date(qrData.expires_at).getTime()
+    const expires = parseServerTime(qrData.expires_at).getTime()
     const tick = () => {
-      const now = Date.now()
-      const diff = Math.max(0, Math.floor((expires - now) / 1000))
+      const diff = Math.max(0, Math.floor((expires - Date.now()) / 1000))
       setCountdown(diff)
+      // Refresh when this token expires. The 10s cooldown prevents hammering
+      // the backend if a fresh token is already expired or requests keep failing.
+      if (diff === 0 && Date.now() - lastRegenRef.current > 10000) {
+        generate()
+      }
     }
     tick()
     const id = setInterval(tick, 1000)
     return () => clearInterval(id)
-  }, [qrData])
+  }, [qrData, generate])
 
   // render QR
   useEffect(() => {
@@ -84,7 +96,6 @@ export default function PrintAttendanceQR() {
     }
   }, [qrData])
 
-  const imageUrl = qrData ? `${API_BASE}/attendance/qr-image/${qrData.qr_token}` : ''
 
   return (
     <div className="print-qr-page">
@@ -92,7 +103,7 @@ export default function PrintAttendanceQR() {
         <p className="print-qr-brand">Greysoft Technologies</p>
         <h1 className="print-qr-title">Reception Attendance QR</h1>
         <p className="print-qr-subtext no-print">
-          Live QR from backend — expires in 30 seconds. Print this sheet and keep it at reception. Students and staff scan it to check in.
+          Refreshes automatically every 30 seconds. Print this sheet and keep it at reception. Students and staff scan it to check in.
         </p>
 
         {error && <p className="error-msg">{error}</p>}
@@ -102,18 +113,19 @@ export default function PrintAttendanceQR() {
         ) : (
           <>
             <div id="qrcode" ref={qrRef} className="print-qr-code" />
-            <p className="print-qr-location no-print" style={{ wordBreak: 'break-all' }}>{qrData.qr_token}</p>
             <p style={{ fontSize: 13, color: countdown <= 5 ? '#b91c1c' : '#6b7280', margin: '0 0 8px' }}>
-              {countdown > 0 ? `Expires in ${countdown}s — ${new Date(qrData.expires_at).toLocaleTimeString()}` : 'Expired — generate new QR'}
+              {countdown > 0
+                ? `Expires in ${countdown}s — auto-refreshing · ${parseServerTime(qrData.expires_at).toLocaleTimeString()}`
+                : loading ? 'Refreshing QR…' : 'Expired — regenerating shortly'}
             </p>
-            <p style={{ fontSize: 12, color: '#9ca3af', margin: '0 0 14px' }}>Date: {qrData.date} — Backend PNG: <a href={imageUrl} target="_blank" rel="noreferrer" style={{ color: '#7a1236' }}>open image</a></p>
+            <p style={{ fontSize: 12, color: '#9ca3af', margin: '0 0 14px' }}>Date: {qrData.date}</p>
           </>
         )}
 
         <ul className="print-qr-instructions no-print">
-          <li>QR is generated via <code>POST /attendance/generate-qr</code> and stored as <code>qr_sessions</code>.</li>
-          <li>Students/staff call <code>POST /attendance/mark</code> with the token to check in.</li>
-          <li>Token expires after 30 seconds (server time). Regenerate if needed.</li>
+          <li>Print this sheet and place it at reception.</li>
+          <li>Students and staff scan the code to check in.</li>
+          <li>The code refreshes automatically every 30 seconds.</li>
           <li><strong>Test one scan before printing final copies.</strong></li>
         </ul>
 
@@ -123,6 +135,9 @@ export default function PrintAttendanceQR() {
           </button>
           <button type="button" className="btn btn-outline" onClick={() => window.print()}>
             Print
+          </button>
+          <button type="button" className="btn btn-outline" onClick={() => navigate('/display-qr')}>
+            Open TV Display
           </button>
           <button type="button" className="btn btn-outline" onClick={() => navigate('/home')}>
             Back to App

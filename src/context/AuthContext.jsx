@@ -25,6 +25,7 @@ export function AuthProvider({ children }) {
     }
     try {
       const res = await api.get('/auth/me')
+      if (res.data.role !== 'admin') throw new Error('not-admin')
       setUser(res.data)
       localStorage.setItem('user', JSON.stringify(res.data))
     } catch {
@@ -50,6 +51,16 @@ export function AuthProvider({ children }) {
       setToken(accessToken)
       // fetch user profile
       const me = await api.get('/auth/me', { headers: { Authorization: `Bearer ${accessToken}` } })
+      if (me.data.role !== 'admin') {
+        // Valid account, but not an admin: don't keep the session.
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('user')
+        setToken(null)
+        setUser(null)
+        const err = new Error('Access denied')
+        err.response = { data: { detail: 'Access denied. This account does not have admin access.' } }
+        throw err
+      }
       localStorage.setItem('user', JSON.stringify(me.data))
       setUser(me.data)
       return me.data
@@ -57,17 +68,6 @@ export function AuthProvider({ children }) {
       setLoading(false)
     }
   }, [])
-
-  const signup = useCallback(async ({ name, email, department, school, password }) => {
-    setLoading(true)
-    try {
-      await api.post('/auth/signup', { name, email, department, school, password })
-      // auto-login after signup
-      return await login(email, password)
-    } finally {
-      setLoading(false)
-    }
-  }, [login])
 
   const logout = useCallback(() => {
     localStorage.removeItem('access_token')
@@ -83,11 +83,10 @@ export function AuthProvider({ children }) {
     loading,
     initializing,
     login,
-    signup,
     logout,
     fetchMe,
     setUser,
-  }), [user, token, isAuthenticated, loading, initializing, login, signup, logout, fetchMe])
+  }), [user, token, isAuthenticated, loading, initializing, login, logout, fetchMe])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

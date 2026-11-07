@@ -1,7 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import api from '../api/axios'
+import { parseServerTime } from '../lib/datetime.js'
+import { isLate } from '../lib/attendance.js'
+import { isStaff, isStudent, normalizeDepartment } from '../lib/users.js'
+import { buildDetailedFromHistory, buildSummaryFromHistory, downloadCSV, todayStamp } from '../lib/export.js'
 
-const STATUS_FILTERS = ['All', 'Present', 'Late', 'Absent']
+const STATUS_FILTERS = ['All', 'Present', 'Late']
+
+const DEPARTMENT_GROUPS = [
+  { key: 'all', label: 'All Records', test: () => true },
+  { key: 'staff', label: 'Staff', test: (u) => isStaff(u) },
+  { key: 'frontend', label: 'Frontend Students', test: (u) => isStudent(u) && normalizeDepartment(u.department) === 'frontend' },
+  { key: 'backend', label: 'Backend Students', test: (u) => isStudent(u) && normalizeDepartment(u.department) === 'backend' },
+  { key: 'ui_ux', label: 'UI/UX Students', test: (u) => isStudent(u) && normalizeDepartment(u.department) === 'ui_ux' },
+  { key: 'cyber_security', label: 'Cyber Security Students', test: (u) => isStudent(u) && normalizeDepartment(u.department) === 'cyber_security' },
+  { key: 'data_analytics', label: 'Data Analytics Students', test: (u) => isStudent(u) && normalizeDepartment(u.department) === 'data_analytics' },
+  { key: 'social_media_management', label: 'Social Media Management Students', test: (u) => isStudent(u) && normalizeDepartment(u.department) === 'social_media_management' },
+]
 
 function initials(name) {
   return (name || '?').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
@@ -14,11 +29,6 @@ function initialsBg(name) {
   return colors[Math.abs(hash) % colors.length]
 }
 
-function isLate(markedAt) {
-  const d = new Date(markedAt)
-  return d.getHours() > 9 || (d.getHours() === 9 && d.getMinutes() > 0)
-}
-
 function formatDay(dateStr) {
   // dateStr like "2026-08-26" -> Monday, Aug 26
   const d = new Date(dateStr + 'T00:00:00')
@@ -29,6 +39,7 @@ function formatDay(dateStr) {
 export default function History() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
+  const [departmentFilter, setDepartmentFilter] = useState('all')
   const [expandedDay, setExpandedDay] = useState(null)
   const [raw, setRaw] = useState([])
   const [loading, setLoading] = useState(true)
@@ -59,6 +70,13 @@ export default function History() {
     return () => { cancelled = true }
   }, [])
 
+  const selectedGroup = DEPARTMENT_GROUPS.find((group) => group.key === departmentFilter) || DEPARTMENT_GROUPS[0]
+
+  const groupHasData = useMemo(
+    () => raw.some((record) => selectedGroup.test(record.user || {})),
+    [raw, selectedGroup]
+  )
+
   const grouped = useMemo(() => {
     // group by date string
     const map = new Map()
@@ -74,17 +92,18 @@ export default function History() {
         const late = isLate(r.marked_at)
         const status = late ? 'late' : 'present'
         const matchStatus = statusFilter === 'All' || status === statusFilter.toLowerCase()
-        // Absent not represented in attendance table; we only filter present/late
-        // If user filters Absent, show none for that date (since no absent records exist)
-        if (statusFilter === 'Absent' && status !== 'absent') return false
         const q = search.trim().toLowerCase()
-        const matchSearch = !q || (r.user?.name || '').toLowerCase().includes(q) || (r.user?.email || '').toLowerCase().includes(q) || r.user_id.toLowerCase().includes(q)
-        return matchStatus && matchSearch
+        const matchSearch = !q
+          || (r.user?.name || '').toLowerCase().includes(q)
+          || (r.user?.email || '').toLowerCase().includes(q)
+          || String(r.user_id || '').toLowerCase().includes(q)
+        const matchDepartment = selectedGroup.test(r.user || {})
+        return matchStatus && matchSearch && matchDepartment
       })
       // map to display shape
       const displayRecords = filtered.map((r) => {
         const late = isLate(r.marked_at)
-        const checkIn = new Date(r.marked_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+        const checkIn = parseServerTime(r.marked_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
         return {
           id: r.id,
           name: r.user?.name || 'Unknown',
@@ -99,17 +118,36 @@ export default function History() {
       })
       return { day: formatDay(date), rawDate: date, records: displayRecords }
     }).filter((d) => d.records.length > 0)
-  }, [raw, search, statusFilter])
+  }, [raw, search, statusFilter, selectedGroup])
+
+  // Flatten the already-filtered groups so export respects search + department + status
+  const exportFlat = useMemo(() => {
+    return grouped.flatMap((d) => d.records.map((r) => ({ ...r, rawDate: d.rawDate, day: d.day })))
+  }, [grouped])
 
   const totals = useMemo(() => {
     let present = 0, late = 0
-    for (const r of raw) {
-      if (isLate(r.marked_at)) late++
+    for (const r of exportFlat) {
+      if (r.status === 'late') late++
       else present++
     }
     // absent not computable without total users * days; show 0 for now
-    return { present, late, absent: 0, total: raw.length }
-  }, [raw])
+    return { present, late, absent: 0, total: exportFlat.length }
+  }, [exportFlat])
+
+  function exportSuffix() {
+    return departmentFilter === 'all' ? '' : `-${departmentFilter.replace(/_/g, '-')}`
+  }
+
+  function handleExportDetailed() {
+    const rows = buildDetailedFromHistory(exportFlat)
+    downloadCSV(`attendance-detailed${exportSuffix()}-${todayStamp()}.csv`, rows)
+  }
+
+  function handleExportSummary() {
+    const rows = buildSummaryFromHistory(exportFlat)
+    downloadCSV(`attendance-summary${exportSuffix()}-${todayStamp()}.csv`, rows)
+  }
 
   if (loading) return <div style={{ padding: 24, color: '#6b7280' }}>Loading attendance history…</div>
   if (error) return <div style={{ padding: 24 }}><p className="error-msg">{error}</p></div>
@@ -119,7 +157,15 @@ export default function History() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Attendance History</h1>
-          <p className="page-desc">Browse daily attendance records for all employees. Live from backend.</p>
+          <p className="page-desc">Browse daily attendance records. Filter by department, status or name — exports use the current filters.</p>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" className="btn btn-outline" onClick={handleExportSummary} disabled={exportFlat.length === 0}>
+            Export Summary
+          </button>
+          <button type="button" className="btn btn-outline" onClick={handleExportDetailed} disabled={exportFlat.length === 0}>
+            Export Detailed
+          </button>
         </div>
       </div>
 
@@ -131,10 +177,6 @@ export default function History() {
         <div className="hist-stat late">
           <p className="hist-num">{totals.late}</p>
           <p className="hist-label">Late</p>
-        </div>
-        <div className="hist-stat absent">
-          <p className="hist-num">{totals.absent}</p>
-          <p className="hist-label">Absent</p>
         </div>
         <div className="hist-stat total">
           <p className="hist-num">{totals.total}</p>
@@ -153,6 +195,21 @@ export default function History() {
         />
       </div>
 
+      <div className="filter-row" style={{ marginBottom: 14 }}>
+        <select
+          className="dropdown-btn"
+          value={departmentFilter}
+          onChange={e => setDepartmentFilter(e.target.value)}
+          style={{ appearance: 'auto', flex: '0 1 280px', minWidth: 0 }}
+          aria-label="Filter by department"
+        >
+          <option value="all">All Records</option>
+          {DEPARTMENT_GROUPS.filter((group) => group.key !== 'all').map((group) => (
+            <option key={group.key} value={group.key}>{group.label}</option>
+          ))}
+        </select>
+      </div>
+
       <div className="filter-row chips">
         {STATUS_FILTERS.map(f => (
           <button
@@ -168,7 +225,11 @@ export default function History() {
 
       <div className="history-days">
         {grouped.length === 0 ? (
-          <p className="empty-state">No records match your search.</p>
+          <p className="empty-state">
+            {selectedGroup.key !== 'all' && !groupHasData
+              ? `No attendance data for ${selectedGroup.label} yet.`
+              : 'No records match your search or filters.'}
+          </p>
         ) : grouped.map(day => (
           <div key={day.rawDate}>
             <button

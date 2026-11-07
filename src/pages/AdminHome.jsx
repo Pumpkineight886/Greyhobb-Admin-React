@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import api from '../api/axios'
+import { parseServerTime } from '../lib/datetime.js'
+import { isLate } from '../lib/attendance.js'
 
 function CalendarIcon() {
   return (
@@ -42,11 +44,6 @@ function initials(name) {
   return (name || '?').split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2)
 }
 
-function isLate(markedAt) {
-  const d = new Date(markedAt)
-  return d.getHours() > 9 || (d.getHours() === 9 && d.getMinutes() > 0)
-}
-
 export default function AdminHome() {
   const [stats, setStats] = useState({ present: 0, late: 0, absent: 0 })
   const [recent, setRecent] = useState([])
@@ -68,7 +65,7 @@ export default function AdminHome() {
         // recent returns AttendanceWithUser
         const mapped = recentRes.data.map((r) => {
           const late = isLate(r.marked_at)
-          const time = new Date(r.marked_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+          const time = parseServerTime(r.marked_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
           return {
             id: r.id,
             name: r.user?.name || 'Unknown',
@@ -104,10 +101,10 @@ export default function AdminHome() {
             <p>Today&rsquo;s Attendance Summary</p>
           </div>
           <div className="overview-actions">
-            <button type="button" className="pill-btn">
+            <span className="pill-btn" style={{ cursor: 'default' }}>
               <CalendarIcon />
               Today
-            </button>
+            </span>
           </div>
         </div>
       </section>

@@ -1,11 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import api from '../api/axios'
 
+const MAX_PHOTO_BYTES = 1024 * 1024
+
 export default function AdminProfileEdit() {
   const { user, setUser } = useAuth()
   const navigate = useNavigate()
+  const fileRef = useRef(null)
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -13,6 +16,8 @@ export default function AdminProfileEdit() {
     school: '',
     employeeId: '',
   })
+  const [photo, setPhoto] = useState('')
+  const [photoError, setPhotoError] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -25,10 +30,32 @@ export default function AdminProfileEdit() {
         school: user.school || '',
         employeeId: user.id ? user.id.slice(0,8).toUpperCase() : '',
       })
+      setPhoto(user.photo || '')
     }
   }, [user])
 
   const handleChange = (field, value) => setForm((prev) => ({ ...prev, [field]: value }))
+
+  const handlePhotoChange = (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setPhotoError('Please choose an image file.')
+      return
+    }
+    if (file.size > MAX_PHOTO_BYTES) {
+      setPhotoError('Image must be 1 MB or smaller.')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      setPhoto(String(reader.result || ''))
+      setPhotoError('')
+    }
+    reader.onerror = () => setPhotoError('Could not read that image.')
+    reader.readAsDataURL(file)
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -39,11 +66,13 @@ export default function AdminProfileEdit() {
     }
     setSaving(true)
     try {
-      const res = await api.put('/auth/me', {
+      const payload = {
         name: form.name.trim(),
         department: form.department.trim(),
         school: form.school.trim(),
-      })
+      }
+      if (photo) payload.photo = photo
+      const res = await api.put('/auth/me', payload)
       setUser(res.data)
       localStorage.setItem('user', JSON.stringify(res.data))
       navigate('/profile')
@@ -62,10 +91,18 @@ export default function AdminProfileEdit() {
       </Link>
 
       <div className="avatar-editor">
-        <div className="avatar-editor-photo" style={{ background: '#7a1236', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 28 }}>
-          {(form.name || '?').split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2)}
-        </div>
-        <button type="button" className="btn-mini" disabled>Change Photo (coming soon)</button>
+        {photo ? (
+          <img src={photo} alt="Profile" className="avatar-editor-photo" style={{ objectFit: 'cover' }} />
+        ) : (
+          <div className="avatar-editor-photo" style={{ background: '#7a1236', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 28 }}>
+            {(form.name || '?').split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2)}
+          </div>
+        )}
+        <input ref={fileRef} type="file" accept="image/*" hidden onChange={handlePhotoChange} />
+        <button type="button" className="btn-mini" onClick={() => fileRef.current?.click()}>
+          Change Photo
+        </button>
+        {photoError && <p className="error-msg">{photoError}</p>}
       </div>
 
       <form className="edit-form" onSubmit={handleSubmit}>

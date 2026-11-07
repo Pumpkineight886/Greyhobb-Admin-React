@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 export default function Login() {
@@ -44,12 +44,14 @@ export default function Login() {
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
-        <p style={{ marginTop: 16, fontSize: 14, color: '#6b7280', textAlign: 'center' }}>
-          No account? <Link to="/signup" style={{ color: '#7a1236', fontWeight: 700, textDecoration: 'none' }}>Create one</Link>
+        <p style={{ marginTop: 16, fontSize: 12, color: '#9ca3af', textAlign: 'center' }}>
+          Admin accounts are created by the system administrator.
         </p>
-        <p style={{ marginTop: 12, fontSize: 12, color: '#9ca3af', textAlign: 'center' }}>
-          API: {import.meta.env.VITE_API_URL || 'http://localhost:8000'}
-        </p>
+        {import.meta.env.DEV && (
+          <p style={{ marginTop: 12, fontSize: 12, color: '#9ca3af', textAlign: 'center' }}>
+            API: {import.meta.env.VITE_API_URL || 'http://localhost:8000'}
+          </p>
+        )}
       </div>
     </div>
   )

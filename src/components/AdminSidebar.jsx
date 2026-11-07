@@ -1,13 +1,17 @@
 import { NavLink, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import MenuIcon from './MenuIcon'
 
 const MENU_ITEMS = [
+  { to: '/home', icon: 'admin-user-icon.png', title: 'Home', desc: 'Overview dashboard with stats and recent check-ins.' },
   { to: '/employee-logs', icon: 'employee-logs-icon.png', title: 'Employee Logs', desc: 'Review daily attendance and activity records.' },
+  { to: '/history', icon: <MenuIcon name="history" />, title: 'History', desc: 'Browse attendance history and export spreadsheets.' },
   { to: '/analytics-reports', icon: 'analytics-reports-icon.png', title: 'Analytics Reports', desc: 'Generate insights on workforce metrics.' },
   { to: '/student-directory', icon: 'student-directory-icon.png', title: 'Student Directory', desc: 'Manage and view enrolled student profiles.' },
+  { to: '/staff-directory', icon: <MenuIcon name="staff" />, title: 'Staff Directory', desc: 'Manage and view staff profiles.' },
   { to: '/system-settings', icon: 'system-settings-icon.png', title: 'System Settings', desc: 'Configure global application parameters.' },
   { to: '/user-management', icon: 'user-management-icon.png', title: 'User Management', desc: 'Control access levels and credentials.' },
-  { to: '/print-attendance-qr', icon: 'audit-logs-icon.png', title: 'Print Attendance QR', desc: 'Print reception sign — students & staff scan to check in.' },
+  { to: '/print-attendance-qr', icon: <MenuIcon name="printer" />, title: 'Print Attendance QR', desc: 'Print reception sign — students & staff scan to check in.' },
 ]
 
 export default function AdminSidebar({ onClose }) {
@@ -37,7 +41,9 @@ export default function AdminSidebar({ onClose }) {
             onClick={onClose}
           >
             <span className="admin-menu-icon">
-              <img src={`/assets/${item.icon}`} alt="" />
+              {typeof item.icon === 'string'
+                ? <img src={`/assets/${item.icon}`} alt="" />
+                : item.icon}
             </span>
             <span className="admin-menu-text">
               <span className="admin-menu-title">{item.title}</span>

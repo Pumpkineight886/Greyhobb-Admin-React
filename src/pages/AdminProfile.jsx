@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import api from "../api/axios";
+import { weekStartISO } from "../lib/attendance.js";
 
 const AdminProfile = () => {
   const { user, logout } = useAuth();
@@ -35,7 +36,12 @@ const AdminProfile = () => {
     { icon: "/assets/employee-id-icon.png", label: "School", value: display.school || "-" },
   ];
 
-  const daysPresent = history.length;
+  const weekStart = weekStartISO();
+  const weeklyDates = new Set();
+  for (const record of history) {
+    if (record.date && record.date >= weekStart) weeklyDates.add(record.date);
+  }
+  const daysPresent = weeklyDates.size;
   // Absent not tracked; compute 0
   const handleLogout = () => {
     logout();
@@ -46,9 +52,18 @@ const AdminProfile = () => {
     <>
       <div className="profile-card">
         <div className="profile-avatar-wrap">
-          <div className="profile-avatar" style={{ background: "#7a1236", color: "#fff", fontWeight: 800, fontSize: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            {(display.name || "?").split(" ").map(n => n[0]).join("").toUpperCase().slice(0,2)}
-          </div>
+          {display.photo ? (
+            <img
+              src={display.photo}
+              alt={display.name}
+              className="profile-avatar"
+              style={{ objectFit: "cover" }}
+            />
+          ) : (
+            <div className="profile-avatar" style={{ background: "#7a1236", color: "#fff", fontWeight: 800, fontSize: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {(display.name || "?").split(" ").map(n => n[0]).join("").toUpperCase().slice(0,2)}
+            </div>
+          )}
           <Link to="/profile-edit" className="profile-edit-badge">
             <img src="/assets/edit-icon-light.png" alt="Edit profile" />
           </Link>
@@ -102,7 +117,6 @@ const AdminProfile = () => {
             </div>
           </div>
         </div>
-        <p style={{ fontSize: 12, color: "#9ca3af", marginTop: 8 }}>Live from <code>GET /auth/me</code> and <code>GET /attendance/history</code></p>
       </section>
 
       <button type="button" className="add-btn profile-logout" onClick={handleLogout}>

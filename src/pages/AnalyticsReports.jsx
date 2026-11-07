@@ -1,5 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import api from '../api/axios'
+import { isLate, todayISO, weekStartISO } from '../lib/attendance.js'
+import { formatDepartment } from '../lib/users.js'
 
 export default function AnalyticsReports() {
   const [history, setHistory] = useState([])
@@ -31,10 +33,11 @@ export default function AnalyticsReports() {
   }, [])
 
   const attendanceData = useMemo(() => {
-    // Group by weekday Mon-Fri for current week from history
+    const weekStart = weekStartISO()
     const dayMap = { Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0 }
     const dayOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
     for (const r of history) {
+      if (!r.date || r.date < weekStart) continue
       const d = new Date(r.date + 'T00:00:00')
       const wd = d.toLocaleDateString('en-US', { weekday: 'short' })
       if (wd in dayMap) dayMap[wd]++
@@ -44,17 +47,16 @@ export default function AnalyticsReports() {
   }, [history])
 
   const lateBreakdown = useMemo(() => {
-    // breakdown by department from history late only
+    const today = todayISO()
     const map = {}
     for (const r of history) {
-      const d = new Date(r.marked_at)
-      const late = d.getHours() > 9 || (d.getHours() === 9 && d.getMinutes() > 0)
-      if (!late) continue
-      const dept = r.user?.department || 'Other'
+      if (r.date !== today) continue
+      if (!isLate(r.marked_at)) continue
+      const dept = formatDepartment(r.user?.department)
       map[dept] = (map[dept] || 0) + 1
     }
     const entries = Object.entries(map).map(([label, value]) => ({ label, value }))
-    if (entries.length === 0) return [{ label: 'No late data', value: 0 }]
+    if (entries.length === 0) return [{ label: 'No late arrivals today', value: 0 }]
     return entries.slice(0, 5)
   }, [history])
 
@@ -67,7 +69,7 @@ export default function AnalyticsReports() {
     <>
       <header className="reports-header">
         <h1>Analytics Reports</h1>
-        <p>Live overview from <code>GET /attendance/stats</code> and <code>GET /attendance/all</code> ({history.length} records).</p>
+        <p>Attendance overview across the organisation — {history.length} records.</p>
       </header>
 
       <div className="reports-grid">
