@@ -56,12 +56,16 @@ export default function AdminHome() {
       setLoading(true)
       setError('')
       try {
-        const [statsRes, recentRes] = await Promise.all([
+        const [statsRes, recentRes, todayRes] = await Promise.all([
           api.get('/attendance/stats'),
           api.get('/attendance/recent?limit=5'),
+          api.get('/attendance/today'),
         ])
         if (cancelled) return
-        setStats(statsRes.data)
+        // The server's late count uses UTC, so it can be an hour off. Count late arrivals here with
+        // the same local-time rule that tags each row, so the card always matches the list.
+        const lateToday = todayRes.data.filter((r) => isLate(r.marked_at)).length
+        setStats({ ...statsRes.data, late: lateToday })
         // recent returns AttendanceWithUser
         const mapped = recentRes.data.map((r) => {
           const late = isLate(r.marked_at)

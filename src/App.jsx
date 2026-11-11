@@ -17,9 +17,12 @@ import PrintAttendanceQR from './pages/PrintAttendanceQR'
 import AttendanceDisplay from './pages/AttendanceDisplay'
 import Login from './pages/Login'
 import NotFound from './pages/NotFound'
+import ServerWakeNotice from './components/ServerWakeNotice'
 
 function App() {
   return (
+    <>
+    <ServerWakeNotice />
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route
@@ -55,6 +58,7 @@ function App() {
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
+    </>
   )
 }
 

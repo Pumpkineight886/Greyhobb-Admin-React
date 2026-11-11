@@ -28,6 +28,8 @@ function initials(name) {
 
 export default function UserManagement() {
   const { user: me } = useAuth()
+  // Role features only appear once the backend sends a role (i.e. the upgraded backend is deployed).
+  const roleSupported = me?.role !== undefined
   const [users, setUsers] = useState([])
   const [query, setQuery] = useState('')
   const [departmentFilter, setDepartmentFilter] = useState('All Departments')
@@ -135,12 +137,12 @@ export default function UserManagement() {
     setSubmitting(true)
     setFormError('')
     try {
-      await api.post('/auth/admin/users', {
+      await api.post(roleSupported ? '/auth/admin/users' : '/auth/signup', {
         name: modalName.trim(),
         email: modalEmail.trim(),
         department: modalDepartment.trim(),
         school: modalSchool.trim(),
-        role: modalRole,
+        ...(roleSupported ? { role: modalRole } : {}),
         password: modalPassword,
       })
       setShowModal(false)
@@ -216,7 +218,7 @@ export default function UserManagement() {
                   <div className={`menu-dropdown${openMenuId === u.id ? ' open' : ''}`}>
                     <button onClick={() => { navigator.clipboard.writeText(u.id); setOpenMenuId(null) }}>Copy ID</button>
                     <button onClick={() => { navigator.clipboard.writeText(u.email); setOpenMenuId(null) }}>Copy Email</button>
-                    {u.id !== me?.id && (
+                    {roleSupported && u.id !== me?.id && (
                       u.role === 'admin'
                         ? <button onClick={() => changeRole(u, 'user')}>Remove admin access</button>
                         : <button onClick={() => changeRole(u, 'admin')}>Make admin</button>
@@ -270,13 +272,13 @@ export default function UserManagement() {
                   ))}
                 </select>
               </div>
-              <div className="field">
+              {roleSupported && <div className="field">
                 <label>Access level</label>
                 <select className="dropdown-btn" value={modalRole} onChange={e => setModalRole(e.target.value)} style={{ appearance: 'auto', width: '100%' }}>
                   <option value="user">Normal user (check in only)</option>
                   <option value="admin">Admin (full access to this app)</option>
                 </select>
-              </div>
+              </div>}
               <div className="field">
                 <label>Password</label>
                 <input type="password" placeholder="••••••" value={modalPassword} onChange={e => setModalPassword(e.target.value)} />

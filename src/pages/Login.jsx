@@ -20,7 +20,9 @@ export default function Login() {
       await login(email.trim(), password)
       navigate('/home', { replace: true })
     } catch (err) {
-      const msg = err.response?.data?.detail || 'Login failed. Check your credentials.'
+      const msg = err.response
+        ? err.response.data?.detail || 'Login failed. Check your credentials.'
+        : "Can't reach the server. Check your internet connection and try again."
       setError(typeof msg === 'string' ? msg : JSON.stringify(msg))
     }
   }

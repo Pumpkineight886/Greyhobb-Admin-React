@@ -25,7 +25,9 @@ export function AuthProvider({ children }) {
     }
     try {
       const res = await api.get('/auth/me')
-      if (res.data.role !== 'admin') throw new Error('not-admin')
+      // If the backend reports a role and it isn't admin, this account may not use the admin app.
+      // (Older backends send no role; they are allowed through until the backend is upgraded.)
+      if (res.data.role && res.data.role !== 'admin') throw new Error('not-admin')
       setUser(res.data)
       localStorage.setItem('user', JSON.stringify(res.data))
     } catch {
@@ -51,8 +53,7 @@ export function AuthProvider({ children }) {
       setToken(accessToken)
       // fetch user profile
       const me = await api.get('/auth/me', { headers: { Authorization: `Bearer ${accessToken}` } })
-      if (me.data.role !== 'admin') {
-        // Valid account, but not an admin: don't keep the session.
+      if (me.data.role && me.data.role !== 'admin') {
         localStorage.removeItem('access_token')
         localStorage.removeItem('user')
         setToken(null)
@@ -69,6 +70,17 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
+  const signup = useCallback(async ({ name, email, department, school, password }) => {
+    setLoading(true)
+    try {
+      await api.post('/auth/signup', { name, email, department, school, password })
+      // auto-login after signup
+      return await login(email, password)
+    } finally {
+      setLoading(false)
+    }
+  }, [login])
+
   const logout = useCallback(() => {
     localStorage.removeItem('access_token')
     localStorage.removeItem('user')
@@ -83,10 +95,11 @@ export function AuthProvider({ children }) {
     loading,
     initializing,
     login,
+    signup,
     logout,
     fetchMe,
     setUser,
-  }), [user, token, isAuthenticated, loading, initializing, login, logout, fetchMe])
+  }), [user, token, isAuthenticated, loading, initializing, login, signup, logout, fetchMe])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

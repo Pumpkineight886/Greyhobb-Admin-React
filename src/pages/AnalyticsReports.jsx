@@ -46,6 +46,12 @@ export default function AnalyticsReports() {
     return dayOrder.map(label => ({ label, value: Math.round((dayMap[label] / max) * 88) || 8 }))
   }, [history])
 
+  // Count today's late arrivals locally (the server's own count uses UTC and can be an hour off)
+  const lateToday = useMemo(() => {
+    const today = todayISO()
+    return history.filter((r) => r.date === today && isLate(r.marked_at)).length
+  }, [history])
+
   const lateBreakdown = useMemo(() => {
     const today = todayISO()
     const map = {}
@@ -100,7 +106,7 @@ export default function AnalyticsReports() {
             <img src="/assets/late-arrivals-icon.png" alt="Late arrivals" />
           </div>
           <h3 className="report-card-title">Late Arrivals</h3>
-          <div className="late-count">{stats.late}</div>
+          <div className="late-count">{lateToday}</div>
           <p className="late-sub">Late today across all branches (after 09:00).</p>
 
           <div className="late-breakdown">

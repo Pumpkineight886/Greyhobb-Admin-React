@@ -12,7 +12,7 @@ export default function ProtectedRoute({ children }) {
     )
   }
 
-  if (!isAuthenticated || user?.role !== 'admin') {
+  if (!isAuthenticated || (user?.role && user.role !== 'admin')) {
     return <Navigate to="/login" replace />
   }
 
